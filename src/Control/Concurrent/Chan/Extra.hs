@@ -1,6 +1,7 @@
 module Control.Concurrent.Chan.Extra where
 
 import Data.IORef (newIORef, readIORef, writeIORef)
+-- import Data.Time.Since (timeSince, newTimeSince)
 import Control.Monad (forever)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, tryTakeMVar, putMVar)
@@ -14,8 +15,9 @@ type DiffNanosec = Int
 type TotalNanosec = Int
 
 
--- debounce :: (TotalNanosec -> DiffNanosec) -> Chan a -> IO (Chan a, Async ())
--- debounce toWait outputChan = do
+-- debounceDynamic :: (NominalDiffTime -> NominalDiffTime) -> Chan a -> IO (Chan a, Async ())
+-- debounceDynamic toWait outputChan = do
+--   sinceRef <- newTimeSince
 --   totalWaited <- newIORef 0
 --   presentedChan <- newChan
 --   writingThread <- newEmptyMVar
@@ -55,14 +57,7 @@ debounceStatic toWaitFurther outputChan = do
   writingThread <- newEmptyMVar
 
   let invokeWrite x = do
-        putStrLn "Being run.."
-
-        -- FIXME must use clocktime - overlayed invocations have
-        -- no concept of time spent, only have knoweldge of invocations
-        -- made
-
         threadDelay toWaitFurther
-        putStrLn "waited done"
         writeChan outputChan x
 
   writer <- async $ forever $ do
@@ -74,7 +69,6 @@ debounceStatic toWaitFurther outputChan = do
     case mInvoker of
       Nothing -> pure ()
       Just i -> cancel i
-    print "killed"
     putMVar writingThread newWriter
 
   pure (presentedChan, writer)
