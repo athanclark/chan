@@ -42,6 +42,28 @@ debounceStatic toWaitFurther outputChan = do
   pure (presentedChan, writer)
 
 
+throttleStatic :: DiffNanosec -> TChan a -> IO (TChan a, Async ())
+throttleStatic toWaitFurther outputChan = do
+  (presentedChan,writingThread) <- atomically $ (,)
+                                             <$> newTChan
+                                             <*> newEmptyTMVar
+
+  let invokeWrite x = do
+        threadDelay toWaitFurther
+        atomically $ writeTChan outputChan x
+
+  writer <- async $ forever $ do
+    x <- atomically $ readTChan presentedChan
+
+    mInvoker <- atomically $ tryTakeTMVar writingThread
+    case mInvoker of
+      Nothing -> pure ()
+      Just i -> wait i
+    newWriter <- async (invokeWrite x)
+    atomically $ putTMVar writingThread newWriter
+
+  pure (presentedChan, writer)
+
 
 intersperseStatic :: DiffNanosec -> IO a -> TChan a -> IO (TChan a, Async (), Async ())
 intersperseStatic timeBetween xM outputChan = do

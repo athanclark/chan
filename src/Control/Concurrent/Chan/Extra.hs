@@ -29,7 +29,7 @@ type DiffNanosec = Int
 --         let toWaitFurther = toWait waited
 --         writeIORef totalWaited (waited + toWaitFurther)
 
---         -- FIXME must use clocktime - overlayed invocations have
+--         -- FIXME must use clocktime http://hackage.haskell.org/package/chan- overlayed invocations have
 --         -- no concept of time spent, only have knoweldge of invocations
 --         -- made
 
@@ -73,6 +73,28 @@ debounceStatic toWaitFurther outputChan = do
 
   pure (presentedChan, writer)
 
+
+-- | Like debounce, but lossless
+throttleStatic :: DiffNanosec -> Chan a -> IO (Chan a, Async ())
+throttleStatic toWaitFurther outputChan = do
+  presentedChan <- newChan
+  writingThread <- newEmptyMVar
+
+  let invokeWrite x = do
+        threadDelay toWaitFurther
+        writeChan outputChan x
+
+  writer <- async $ forever $ do
+    x <- readChan presentedChan
+
+    mInvoker <- tryTakeMVar writingThread
+    case mInvoker of
+      Nothing -> pure ()
+      Just i -> wait i
+    newWriter <- async (invokeWrite x)
+    putMVar writingThread newWriter
+
+  pure (presentedChan, writer)
 
 
 intersperseStatic :: DiffNanosec -> IO a -> Chan a -> IO (Chan a, Async (), Async ())
