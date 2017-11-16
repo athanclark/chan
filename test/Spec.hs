@@ -1,7 +1,7 @@
 import Control.Monad (forever)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan (newChan, writeChan, readChan)
-import Control.Concurrent.Chan.Extra (debounce)
+import Control.Concurrent.Chan.Extra (debounceStatic)
 import Control.Concurrent.Async (async)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
@@ -9,7 +9,7 @@ main :: IO ()
 main = do
 
   outgoing <- newChan
-  (incoming, _) <- debounce (\_ -> 1000000) outgoing
+  (incoming, _) <- debounceStatic 1000000 outgoing
 
   lock <- newEmptyMVar
 
