@@ -12,7 +12,7 @@ import Control.Concurrent.Async (Async, async, cancel, wait)
 
 type DiffNanosec = Int
 
-type TotalNanosec = Int
+-- type TotalNanosec = Int
 
 
 -- debounceDynamic :: (NominalDiffTime -> NominalDiffTime) -> Chan a -> IO (Chan a, Async ())
