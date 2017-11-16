@@ -6,7 +6,7 @@ import Control.Monad (forever)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, tryTakeMVar, putMVar)
 import Control.Concurrent.Chan (Chan, readChan, writeChan, newChan)
-import Control.Concurrent.Async (Async, async, cancel)
+import Control.Concurrent.Async (Async, async, cancel, wait)
 
 
 
@@ -72,3 +72,35 @@ debounceStatic toWaitFurther outputChan = do
     putMVar writingThread newWriter
 
   pure (presentedChan, writer)
+
+
+
+intersperseStatic :: DiffNanosec -> IO a -> Chan a -> IO (Chan a, Async (), Async ())
+intersperseStatic timeBetween xM outputChan = do
+  presentedChan <- newChan
+  writingThread <- newEmptyMVar
+
+  let invokeWritePing = do
+        threadDelay timeBetween
+        x <- xM
+        writeChan outputChan x
+
+  writer <- async $ forever $ do
+    mInvoker <- tryTakeMVar writingThread
+    case mInvoker of
+      Nothing -> pure ()
+      Just i -> wait i
+    newWriter <- async invokeWritePing
+    putMVar writingThread newWriter
+
+  listener <- async $ forever $ do
+    y <- readChan presentedChan
+
+    mInvoker <- tryTakeMVar writingThread
+    case mInvoker of
+      Nothing -> pure ()
+      Just i -> cancel i
+
+    writeChan outputChan y
+
+  pure (presentedChan, writer, listener)
