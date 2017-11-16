@@ -106,11 +106,11 @@ tchanDebounceTests = do
 
   _ <- atomically $ takeTMVar lock
 
-  -- putStrLn "writing 2..."
-  -- atomically $ writeTChan incoming 1
-  -- atomically $ writeTChan incoming 2
+  putStrLn "writing 2..."
+  atomically $ writeTChan incoming 1
+  atomically $ writeTChan incoming 2
 
-  -- _ <- atomically $ takeTMVar lock
+  _ <- atomically $ takeTMVar lock
 
   pure ()
 
@@ -173,4 +173,5 @@ tchanTests = do
 main :: IO ()
 main = do
   chanTests
+  threadDelay 2000000
   tchanTests
