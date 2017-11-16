@@ -1,6 +1,6 @@
 name:                chan
 version:             0.0.0
--- synopsis:
+synopsis:            Some extra kit for Chans
 -- description:
 homepage:            https://github.com/athanclark/chan#readme
 license:             BSD3
