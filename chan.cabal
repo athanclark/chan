@@ -1,5 +1,5 @@
 name:                chan
-version:             0.0.2
+version:             0.0.3
 synopsis:            Some extra kit for Chans
 -- description:
 homepage:            https://github.com/athanclark/chan#readme
@@ -16,7 +16,12 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Control.Concurrent.Chan.Extra
+                       Control.Concurrent.Chan.Scope
+                       Control.Concurrent.Chan.Typed
+                       Control.Concurrent.Chan.Typed.Extra
                        Control.Concurrent.STM.TChan.Extra
+                       Control.Concurrent.STM.TChan.Typed
+                       Control.Concurrent.STM.TChan.Typed.Extra
   build-depends:       base >= 4.7 && < 5
                      , async
                      , stm
