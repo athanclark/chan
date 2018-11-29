@@ -23,10 +23,11 @@ import Control.Concurrent.MVar (newEmptyMVar, tryTakeMVar, putMVar)
 import Control.Concurrent.Chan (Chan, readChan, writeChan, newChan)
 import Control.Concurrent.Async (Async, async, cancel, wait)
 import Control.Concurrent.STM
-  (atomically, tryTakeTMVar, putTMVar, newEmptyTMVar)
+  (atomically, tryTakeTMVar, putTMVar, newEmptyTMVarIO)
 import Control.Concurrent.STM.TChan (TChan)
 
 
+-- | Class for changing the access of a typed channel
 class ChanScoped (c :: Scope -> * -> *) where
   readOnly :: Readable scope => c scope a -> c 'Read a
   writeOnly :: Writable scope => c scope a -> c 'Write a
@@ -37,14 +38,20 @@ class ChanScoped (c :: Scope -> * -> *) where
 type DiffNanosec = Int
 
 
-class ChanExtra (inputC :: * -> *) (outputC)
+-- | Class for extra channel techniques
+class ChanExtra (inputC :: * -> *) (outputC :: * -> *)
       | inputC -> outputC, outputC -> inputC where
-  -- | throw away messages that meet the threshold
-  debounceStatic :: DiffNanosec -> outputC a -> IO (inputC a, Async ())
-  -- | refrain from relaying messages that meet the threshold
-  throttleStatic :: DiffNanosec -> outputC a -> IO (inputC a, Async ())
-  -- | intersperse messages while threshold is met
-  intersperseStatic :: DiffNanosec -> IO a -> outputC a -> IO (inputC a, Async (), Async ())
+  -- | Throw away messages that meet the threshold
+  debounceStatic :: DiffNanosec -- ^ Time to wait before attempting to send the message
+                 -> outputC a -> IO (inputC a, Async ())
+  -- | Refrain from relaying messages that meet the threshold
+  throttleStatic :: DiffNanosec -- ^ Time to wait before sending the message, for every message
+                 -> outputC a -> IO (inputC a, Async ())
+  -- | Intercalate messages while threshold is met
+  intersperseStatic :: DiffNanosec -- ^ Time to at-least wait to intersperse messages
+                    -> IO a -- ^ Get a message to intersperse
+                    -> outputC a
+                    -> IO (inputC a, Async (), Async ())
 
 
 instance ChanExtra Chan Chan where
@@ -80,77 +87,62 @@ instance ChanScoped TChanRW where
 
 instance ChanExtra (TChanRW 'Write) (TChanRW 'Read) where
   debounceStatic toWaitFurther outputChan = do
-    (presentedChan,writingThread) <- atomically $ (,)
-                                              <$> newTChanRW
-                                              <*> newEmptyTMVar
-
-    let invokeWrite x = do
-          threadDelay toWaitFurther
-          atomically $ writeTChanRW (allowWriting outputChan) x
+    presentedChan <- atomically newTChanRW
+    writingThread <- newEmptyTMVarIO
 
     writer <- async $ forever $ do
-      x <- atomically $ readTChanRW presentedChan
-
-      newWriter <- async (invokeWrite x)
-
-      mInvoker <- atomically $ tryTakeTMVar writingThread
+      x <- atomically (readTChanRW presentedChan)
+      newWriter <- async $ do
+        threadDelay toWaitFurther
+        atomically (writeTChanRW (allowWriting outputChan) x)
+      mInvoker <- atomically (tryTakeTMVar writingThread)
       case mInvoker of
         Nothing -> pure ()
-        Just i -> cancel i
-      atomically $ putTMVar writingThread newWriter
+        Just i -> cancel i -- kill the old without writing to output
+      atomically (putTMVar writingThread newWriter)
 
     pure (writeOnly presentedChan, writer)
 
   throttleStatic toWaitFurther outputChan = do
-    (presentedChan,writingThread) <- atomically $ (,)
-                                              <$> newTChanRW
-                                              <*> newEmptyTMVar
-
-    let invokeWrite x = do
-          threadDelay toWaitFurther
-          atomically $ writeTChanRW (allowWriting outputChan) x
+    presentedChan <- atomically newTChanRW
+    writingThread <- newEmptyTMVarIO
 
     writer <- async $ forever $ do
-      x <- atomically $ readTChanRW presentedChan
-
-      mInvoker <- atomically $ tryTakeTMVar writingThread
+      x <- atomically (readTChanRW presentedChan)
+      mInvoker <- atomically (tryTakeTMVar writingThread)
       case mInvoker of
         Nothing -> pure ()
-        Just i -> wait i
-      newWriter <- async (invokeWrite x)
-      atomically $ putTMVar writingThread newWriter
+        Just i -> wait i -- cascade invocations, waiting until output writes
+      newWriter <- async $ do
+        threadDelay toWaitFurther
+        atomically (writeTChanRW (allowWriting outputChan) x)
+      atomically (putTMVar writingThread newWriter)
 
     pure (writeOnly presentedChan, writer)
 
   intersperseStatic timeBetween xM outputChan = do
-    (presentedChan,writingThread) <- atomically $ (,)
-                                              <$> newTChanRW
-                                              <*> newEmptyTMVar
-
-    let invokeWritePing = do
-          threadDelay timeBetween
-          x <- xM
-          atomically $ writeTChanRW (allowWriting outputChan) x
+    presentedChan <- atomically newTChanRW
+    writingThread <- newEmptyTMVarIO
 
     writer <- async $ forever $ do
-      mInvoker <- atomically $ tryTakeTMVar writingThread
+      mInvoker <- atomically (tryTakeTMVar writingThread)
       case mInvoker of
-        Nothing -> pure ()
-        Just i -> wait i
-      newWriter <- async invokeWritePing
-      atomically $ putTMVar writingThread newWriter
+        Nothing -> pure () -- continue immediately if nothing's waiting
+        Just i -> wait i -- block until previous ping is sent
+      newWriter <- async $ do
+        threadDelay timeBetween
+        x <- xM -- get new ping message
+        atomically (writeTChanRW (allowWriting outputChan) x) -- send it
+      atomically (putTMVar writingThread newWriter) -- register pinger
 
     listener <- async $ forever $ do
-      (y,mInvoker) <- atomically $ do
-        y' <- readTChanRW presentedChan
-
-        (\q -> (y',q)) <$> tryTakeTMVar writingThread
-
+      y <- atomically (readTChanRW presentedChan)
+      mInvoker <- atomically (tryTakeTMVar writingThread)
       case mInvoker of
         Nothing -> pure ()
-        Just i -> cancel i
+        Just i -> cancel i -- kill pinger
 
-      atomically $ writeTChanRW (allowWriting outputChan) y
+      atomically (writeTChanRW (allowWriting outputChan) y) -- immediately send regular message
 
     pure (writeOnly presentedChan, writer, listener)
 
@@ -166,14 +158,12 @@ instance ChanExtra (ChanRW 'Write) (ChanRW 'Read) where
     presentedChan <- newChanRW
     writingThread <- newEmptyMVar
 
-    let invokeWrite x = do
-          threadDelay toWaitFurther
-          writeChanRW (allowWriting outputChan) x
-
     writer <- async $ forever $ do
       x <- readChanRW presentedChan
 
-      newWriter <- async (invokeWrite x)
+      newWriter <- async $ do
+        threadDelay toWaitFurther
+        writeChanRW (allowWriting outputChan) x
 
       mInvoker <- tryTakeMVar writingThread
       case mInvoker of
@@ -187,10 +177,6 @@ instance ChanExtra (ChanRW 'Write) (ChanRW 'Read) where
     presentedChan <- newChanRW
     writingThread <- newEmptyMVar
 
-    let invokeWrite x = do
-          threadDelay toWaitFurther
-          writeChanRW (allowWriting outputChan) x
-
     writer <- async $ forever $ do
       x <- readChanRW presentedChan
 
@@ -198,7 +184,9 @@ instance ChanExtra (ChanRW 'Write) (ChanRW 'Read) where
       case mInvoker of
         Nothing -> pure ()
         Just i -> wait i
-      newWriter <- async (invokeWrite x)
+      newWriter <- async $ do
+        threadDelay toWaitFurther
+        writeChanRW (allowWriting outputChan) x
       putMVar writingThread newWriter
 
     pure (writeOnly presentedChan, writer)
@@ -207,17 +195,15 @@ instance ChanExtra (ChanRW 'Write) (ChanRW 'Read) where
     presentedChan <- newChanRW
     writingThread <- newEmptyMVar
 
-    let invokeWritePing = do
-          threadDelay timeBetween
-          x <- xM
-          writeChanRW (allowWriting outputChan) x
-
     writer <- async $ forever $ do
       mInvoker <- tryTakeMVar writingThread
       case mInvoker of
         Nothing -> pure ()
         Just i -> wait i
-      newWriter <- async invokeWritePing
+      newWriter <- async $ do
+        threadDelay timeBetween
+        x <- xM
+        writeChanRW (allowWriting outputChan) x
       putMVar writingThread newWriter
 
     listener <- async $ forever $ do
