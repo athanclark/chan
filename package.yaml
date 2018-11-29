@@ -1,0 +1,42 @@
+name:                chan
+version:             0.0.4
+github:              "athanclark/chan"
+license:             BSD3
+author:              "Athan Clark"
+maintainer:          "athan.clark@localcooking.com"
+copyright:           "2018 Athan Clark"
+category:            Concurrency
+synopsis:            Some extra kit for Chans
+
+ghc-options: -Wall
+
+extra-source-files:
+- README.md
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on Github at <https://github.com/athanclark/chan#readme>
+
+dependencies:
+  - base >= 4.11 && < 5.0
+  - async
+  - stm
+
+library:
+  source-dirs: src
+
+tests:
+  chan-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -Wall
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - chan
+    - async
+    - stm

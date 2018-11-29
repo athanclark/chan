@@ -6,25 +6,13 @@
 module Control.Concurrent.STM.TChan.Typed where
 
 import Control.Concurrent.Chan.Scope (Scope (..), Writable, Readable)
+
 import Control.Concurrent.STM.TChan (TChan)
 import qualified Control.Concurrent.STM.TChan as TChan
 import Control.Concurrent.STM (STM)
 
 
 newtype TChanRW (scope :: Scope) a = TChanRW (TChan a)
-
-
-readOnly :: Readable scope => TChanRW scope a -> TChanRW 'Read a
-readOnly (TChanRW c) = TChanRW c
-
-writeOnly :: Writable scope => TChanRW scope a -> TChanRW 'Write a
-writeOnly (TChanRW c) = TChanRW c
-
-allowReading :: Writable scope => TChanRW scope a -> TChanRW 'ReadWrite a
-allowReading (TChanRW c) = TChanRW c
-
-allowWriting :: Readable scope => TChanRW scope a -> TChanRW 'ReadWrite a
-allowWriting (TChanRW c) = TChanRW c
 
 
 newTChanRW :: STM (TChanRW 'ReadWrite a)
