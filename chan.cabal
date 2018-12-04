@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9429247fea789bb683e6f4ed7fb173854b095d3e98824b896891eb68655e73a8
+-- hash: ccb631c185767be2ee9b87d1fdc3c68a599868947989a396f06221b2c06a9b22
 
 name:           chan
-version:        0.0.4
+version:        0.0.4.1
 synopsis:       Some extra kit for Chans
 description:    Please see the README on Github at <https://github.com/athanclark/chan#readme>
 category:       Concurrency

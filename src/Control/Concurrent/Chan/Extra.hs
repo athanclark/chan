@@ -16,11 +16,10 @@ import Control.Concurrent.STM.TChan.Typed
   ( TChanRW (..), writeTChanRW, readTChanRW, newTChanRW)
 import Control.Concurrent.Chan.Scope (Scope (..), Writable, Readable)
 
-import Data.IORef (newIORef, readIORef, writeIORef)
 import Control.Monad (forever)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, tryTakeMVar, putMVar)
-import Control.Concurrent.Chan (Chan, readChan, writeChan, newChan)
+import Control.Concurrent.Chan (Chan)
 import Control.Concurrent.Async (Async, async, cancel, wait)
 import Control.Concurrent.STM
   (atomically, tryTakeTMVar, putTMVar, newEmptyTMVarIO)

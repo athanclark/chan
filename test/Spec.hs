@@ -1,15 +1,15 @@
 import Control.Monad (forever)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan (newChan, writeChan, readChan)
-import Control.Concurrent.Chan.Extra (debounceStatic, throttleStatic, intersperseStatic)
+import Control.Concurrent.Chan.Extra (ChanExtra (debounceStatic, throttleStatic, intersperseStatic))
 import Control.Concurrent.Async (async)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TChan (newTChan, writeTChan, readTChan)
-import qualified Control.Concurrent.STM.TChan.Extra as TChan
 import Control.Concurrent.STM.TMVar (newEmptyTMVar, putTMVar, takeTMVar)
 
 
+chanDebounceTest :: IO ()
 chanDebounceTest = do
   putStrLn "Debounce ---------"
   outgoing <- newChan
@@ -35,6 +35,7 @@ chanDebounceTest = do
 
   pure ()
 
+chanThrottleTest :: IO ()
 chanThrottleTest = do
   putStrLn "Throttle ---------"
   outgoing <- newChan
@@ -60,6 +61,7 @@ chanThrottleTest = do
 
   pure ()
 
+chanIntersperseTest :: IO ()
 chanIntersperseTest = do
   putStrLn "Intersperse ---------"
   outgoing <- newChan
@@ -84,15 +86,17 @@ chanIntersperseTest = do
   pure ()
 
 
+chanTests :: IO ()
 chanTests = do
   chanDebounceTest
   chanThrottleTest
   chanIntersperseTest
 
+tchanDebounceTests :: IO ()
 tchanDebounceTests = do
   putStrLn "Debounce STM ---------"
   outgoing <- atomically newTChan
-  (incoming, _) <- TChan.debounceStatic 1000000 outgoing
+  (incoming, _) <- debounceStatic 1000000 outgoing
 
   lock <- atomically newEmptyTMVar
 
@@ -114,10 +118,11 @@ tchanDebounceTests = do
 
   pure ()
 
+tchanThrottleTests :: IO ()
 tchanThrottleTests = do
   putStrLn "Throttle STM ---------"
   outgoing <- atomically newTChan
-  (incoming, _) <- TChan.throttleStatic 1000000 outgoing
+  (incoming, _) <- throttleStatic 1000000 outgoing
 
   lock <- atomically newTChan
 
@@ -140,10 +145,11 @@ tchanThrottleTests = do
   pure ()
 
 
+tchanIntersperseTests :: IO ()
 tchanIntersperseTests = do
   putStrLn "Intersperse STM ---------"
   outgoing <- atomically newTChan
-  (incoming, _, _) <- TChan.intersperseStatic 1000000 (pure 0) outgoing
+  (incoming, _, _) <- intersperseStatic 1000000 (pure 0) outgoing
 
   lock <- atomically newEmptyTMVar
 
@@ -164,6 +170,7 @@ tchanIntersperseTests = do
   pure ()
 
 
+tchanTests :: IO ()
 tchanTests = do
   tchanDebounceTests
   tchanThrottleTests
